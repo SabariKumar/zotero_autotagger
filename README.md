@@ -133,3 +133,6 @@ Markdown code fences are stripped defensively before parsing, as Claude occasion
 ```
 
 To verify the plugin is running, open **Help → Debug Output Logging → View Output** and look for `ZoteroAutoTagger: started`. Each tagging event logs `ZoteroAutoTagger: tagged "<title>" → [tag1, tag2, ...]`.
+
+---
+Dedicated to Will Hughes' citation spreadsheets.
