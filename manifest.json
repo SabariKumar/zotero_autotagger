@@ -4,6 +4,10 @@
   "version": "0.1.0",
   "description": "Auto-tag papers using Claude AI when added to Zotero",
   "applications": {
+    "gecko": {
+      "id": "zotero-autotagger@sabarinkumar",
+      "strict_min_version": "102.0"
+    },
     "zotero": {
       "id": "zotero-autotagger@sabarinkumar",
       "strict_min_version": "7.0.0"
