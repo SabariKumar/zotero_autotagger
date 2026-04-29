@@ -1,85 +1,78 @@
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head>
-  <title>AutoTagger</title>
-  <style>
-    body { font-family: -apple-system, sans-serif; padding: 16px; }
-    h3 { margin: 0 0 16px; }
-    .row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-    .row label { min-width: 80px; font-weight: 600; }
-    .row input { flex: 1; padding: 4px 6px; }
-    .hint { color: #888; font-size: 0.82em; margin: 4px 0 0 88px; }
-    .status { margin-top: 12px; font-size: 0.85em; color: #2a7; display: none; }
-  </style>
-</head>
-<body>
+<fragment xmlns="http://www.w3.org/1999/xhtml">
+<style>
+  .autotagger-pane { padding: 16px; font-family: -apple-system, sans-serif; }
+  .autotagger-pane h3 { margin: 0 0 16px; }
+  .autotagger-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .autotagger-row label { min-width: 120px; font-weight: 600; }
+  .autotagger-row input { flex: 1; padding: 4px 6px; }
+  .autotagger-hint { color: #888; font-size: 0.82em; margin: 4px 0 0 128px; }
+  .autotagger-status { margin-top: 12px; font-size: 0.85em; color: #2a7; display: none; }
+</style>
+
+<div class="autotagger-pane">
   <h3>AutoTagger</h3>
 
-  <div class="row">
-    <label for="api-key">Anthropic API Key</label>
-    <input id="api-key" type="password" placeholder="sk-ant-api03-..." />
+  <div class="autotagger-row">
+    <label for="autotagger-api-key">Anthropic API Key</label>
+    <input id="autotagger-api-key" type="password" placeholder="sk-ant-api03-..." />
   </div>
-  <p class="hint">
+  <p class="autotagger-hint">
     Your <strong>Anthropic</strong> API key (console.anthropic.com) — not your Zotero API key.
     Papers added via the Zotero connector will be tagged automatically using Claude.
     For arXiv papers, subject tags are also fetched from the arXiv taxonomy.
   </p>
-  <p class="status" id="status">Saved.</p>
+  <p class="autotagger-status" id="autotagger-status">Saved.</p>
+</div>
 
-  <script>
-    /* global Services, Cc, Ci, Zotero */
+<script>
+  /* global Services, Cc, Ci, Zotero */
+  const KEYCHAIN_HOST  = "chrome://zotero-autotagger";
+  const KEYCHAIN_REALM = "Anthropic API Key";
+  const KEYCHAIN_USER  = "anthropic";
 
-    // The prefs pane runs in its own document scope and cannot access globals
-    // defined via loadSubScript in bootstrap.js, so keychain access is inlined
-    // here using the same nsILoginManager calls as content/keychain.js.
-    const KEYCHAIN_HOST  = "chrome://zotero-autotagger";
-    const KEYCHAIN_REALM = "Anthropic API Key";
-    const KEYCHAIN_USER  = "anthropic";
+  function keychainGet() {
+    try {
+      const logins = Services.logins.findLogins(KEYCHAIN_HOST, null, KEYCHAIN_REALM);
+      return logins.length ? logins[0].password : "";
+    } catch (e) { return ""; }
+  }
 
-    function keychainGet() {
-      try {
-        const logins = Services.logins.findLogins(KEYCHAIN_HOST, null, KEYCHAIN_REALM);
-        return logins.length ? logins[0].password : "";
-      } catch (e) { return ""; }
-    }
-
-    function keychainSet(apiKey) {
-      try {
-        const loginInfo = Cc["@mozilla.org/login-manager/loginInfo;1"].createInstance(Ci.nsILoginInfo);
-        loginInfo.init(KEYCHAIN_HOST, null, KEYCHAIN_REALM, KEYCHAIN_USER, apiKey, "", "");
-        const existing = Services.logins.findLogins(KEYCHAIN_HOST, null, KEYCHAIN_REALM);
-        if (existing.length) {
-          Services.logins.modifyLogin(existing[0], loginInfo);
-        } else {
-          Services.logins.addLogin(loginInfo);
-        }
-      } catch (e) {
-        Zotero.log(`ZoteroAutoTagger prefs: keychain write failed: ${e.message}`, "error");
-      }
-    }
-
-    function keychainRemove() {
-      try {
-        const existing = Services.logins.findLogins(KEYCHAIN_HOST, null, KEYCHAIN_REALM);
-        for (const login of existing) Services.logins.removeLogin(login);
-      } catch (e) {}
-    }
-
-    const input  = document.getElementById("api-key");
-    const status = document.getElementById("status");
-
-    input.value = keychainGet();
-
-    input.addEventListener("change", () => {
-      const val = input.value.trim();
-      if (val) {
-        keychainSet(val);
+  function keychainSet(apiKey) {
+    try {
+      const loginInfo = Cc["@mozilla.org/login-manager/loginInfo;1"].createInstance(Ci.nsILoginInfo);
+      loginInfo.init(KEYCHAIN_HOST, null, KEYCHAIN_REALM, KEYCHAIN_USER, apiKey, "", "");
+      const existing = Services.logins.findLogins(KEYCHAIN_HOST, null, KEYCHAIN_REALM);
+      if (existing.length) {
+        Services.logins.modifyLogin(existing[0], loginInfo);
       } else {
-        keychainRemove();
+        Services.logins.addLogin(loginInfo);
       }
-      status.style.display = "block";
-      setTimeout(() => { status.style.display = "none"; }, 2000);
-    });
-  </script>
-</body>
-</html>
+    } catch (e) {
+      Zotero.log(`ZoteroAutoTagger prefs: keychain write failed: ${e.message}`, "error");
+    }
+  }
+
+  function keychainRemove() {
+    try {
+      const existing = Services.logins.findLogins(KEYCHAIN_HOST, null, KEYCHAIN_REALM);
+      for (const login of existing) Services.logins.removeLogin(login);
+    } catch (e) {}
+  }
+
+  const input  = document.getElementById("autotagger-api-key");
+  const status = document.getElementById("autotagger-status");
+
+  input.value = keychainGet();
+
+  input.addEventListener("change", () => {
+    const val = input.value.trim();
+    if (val) {
+      keychainSet(val);
+    } else {
+      keychainRemove();
+    }
+    status.style.display = "block";
+    setTimeout(() => { status.style.display = "none"; }, 2000);
+  });
+</script>
+</fragment>
