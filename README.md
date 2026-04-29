@@ -130,6 +130,22 @@ Markdown code fences are stripped defensively before parsing, as Claude occasion
 # Select: zotero-autotagger.xpi
 
 # Set your API key: Zotero → Preferences → AutoTagger
+# Alternatively, Zotero → Developer → Run Javascript:
+const li = Cc["@mozilla.org/login-manager/loginInfo;1"].createInstance(Ci.nsILoginInfo);
+li.init("chrome://zotero-autotagger", null, "Anthropic API Key", "anthropic", "sk-ant-YOUR-KEY-HERE", "", "");
+Services.logins.addLogin(li);
+
+# To update a stored key:
+const HOST = "chrome://zotero-autotagger";
+const REALM = "Anthropic API Key";
+const existing = Services.logins.findLogins(HOST, null, REALM);
+const li = Cc["@mozilla.org/login-manager/loginInfo;1"].createInstance(Ci.nsILoginInfo);
+li.init(HOST, null, REALM, "anthropic", "sk-ant-YOUR-KEY-HERE", "", "");
+Services.logins.modifyLogin(existing[0], li);
+
+# To view the stored key:
+const logins = Services.logins.findLogins("chrome://zotero-autotagger", null, "Anthropic API Key");
+logins[0].password;
 ```
 
 To verify the plugin is running, open **Help → Debug Output Logging → View Output** and look for `ZoteroAutoTagger: started`. Each tagging event logs `ZoteroAutoTagger: tagged "<title>" → [tag1, tag2, ...]`.
