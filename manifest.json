@@ -10,7 +10,9 @@
     },
     "zotero": {
       "id": "zotero-autotagger@sabarinkumar",
-      "strict_min_version": "7.0.0"
+      "strict_min_version": "7.0.0",
+      "strict_max_version": "7.*",
+      "update_url": "https://raw.githubusercontent.com/sabarinkumar/zotero_autotagger/main/update.json"
     }
   }
 }
