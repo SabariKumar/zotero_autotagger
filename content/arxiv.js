@@ -1,6 +1,26 @@
+/**
+ * ArxivHelper — arXiv subject tag fetcher.
+ *
+ * Queries the arXiv Atom API for a paper's registered subject categories and
+ * translates them to human-readable hyphenated tag strings. Categories that
+ * are not in the ARXIV_CATEGORIES map are converted by a mechanical fallback
+ * (e.g. "cs.LG" → "cs-lg") so no category is silently dropped.
+ *
+ * The Atom feed is parsed with DOMParser, which is available in Zotero's
+ * Firefox-derived environment without any imports.
+ */
+
 const ARXIV_API = "https://export.arxiv.org/api/query?id_list=";
 
-// Maps arXiv category codes to human-readable hyphenated tags
+/**
+ * Maps arXiv category codes to human-readable hyphenated tag strings.
+ *
+ * Only the most common subcategories are listed. Unmapped codes are handled
+ * by ArxivHelper._codeToTag. Add entries here to improve tag quality for
+ * fields not yet covered.
+ *
+ * @type {Object.<string, string>}
+ */
 const ARXIV_CATEGORIES = {
   // Computer Science
   "cs.AI":  "artificial-intelligence",
@@ -81,6 +101,19 @@ const ARXIV_CATEGORIES = {
 };
 
 const ArxivHelper = {
+  /**
+   * Fetch and translate arXiv subject categories for a given paper.
+   *
+   * The arXiv Atom API returns an XML feed with one <category> element per
+   * subject. A paper typically has one primary category and one or more
+   * cross-listed categories — all are included. Failures are non-fatal:
+   * a warning is logged and an empty array is returned so the Claude tagging
+   * stage can still proceed.
+   *
+   * @param {string} arxivID - Bare arXiv identifier, e.g. "2301.12345".
+   * @returns {Promise<string[]>} Human-readable tag strings, one per category.
+   *   Returns an empty array on network error or malformed response.
+   */
   async fetchSubjectTags(arxivID) {
     try {
       const response = await fetch(ARXIV_API + arxivID);
@@ -103,7 +136,17 @@ const ArxivHelper = {
     }
   },
 
-  // Fallback for unmapped codes: "cs.LG" → "cs-lg"
+  /**
+   * Convert an unmapped arXiv category code to a tag string.
+   *
+   * Used as a fallback when a code is not in ARXIV_CATEGORIES — ensures new
+   * or obscure categories produce a usable tag rather than being silently
+   * dropped. The dot separator is replaced with a hyphen to match the
+   * hyphenated convention used throughout the tag vocabulary.
+   *
+   * @param {string} code - arXiv category code, e.g. "cs.LG" or "econ.GN".
+   * @returns {string} Lowercase hyphenated tag, e.g. "cs-lg" or "econ-gn".
+   */
   _codeToTag(code) {
     return code.toLowerCase().replace(/\./g, "-");
   },
