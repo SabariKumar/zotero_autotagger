@@ -15,7 +15,6 @@
  * Tags are always appended — existing tags on the item are never removed.
  */
 
-const PREF_API_KEY = "extensions.zotero-autotagger.apiKey";
 const CLAUDE_MODEL = "claude-sonnet-4-6";
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 
@@ -97,7 +96,7 @@ class AutoTagger {
    * @returns {Promise<void>}
    */
   async _tagItem(item) {
-    const apiKey = Zotero.Prefs.get(PREF_API_KEY, true);
+    const apiKey = KeychainHelper.get();
     if (!apiKey) {
       Zotero.log(
         "ZoteroAutoTagger: API key not set — open Zotero Preferences → AutoTagger",
@@ -173,7 +172,7 @@ class AutoTagger {
    * object; markdown code fences are stripped defensively because Claude
    * occasionally wraps JSON in ```json blocks despite the prompt instruction.
    *
-   * @param {string} apiKey - Anthropic API key from Zotero preferences.
+   * @param {string} apiKey - Anthropic API key retrieved from KeychainHelper.
    * @param {string} title - Paper title.
    * @param {string} abstract - Paper abstract, or empty string if unavailable.
    * @param {string[]} existingTags - Tags already assigned (from arXiv), to avoid duplication.

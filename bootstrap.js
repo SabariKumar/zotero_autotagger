@@ -8,6 +8,7 @@
  * Content scripts cannot use ES module imports in Zotero's chrome environment,
  * so dependencies are loaded via Services.scriptloader.loadSubScript, which
  * evaluates each file into the bootstrap's global scope in load order.
+ * Load order: keychain.js → arxiv.js → autotagger.js (each depends on the prior).
  */
 
 var ZoteroAutoTagger;
@@ -27,6 +28,7 @@ var _prefPaneID;
  * @returns {void}
  */
 function startup({ rootURI }) {
+  Services.scriptloader.loadSubScript(rootURI + "content/keychain.js");
   Services.scriptloader.loadSubScript(rootURI + "content/arxiv.js");
   Services.scriptloader.loadSubScript(rootURI + "content/autotagger.js");
   ZoteroAutoTagger = new AutoTagger();
