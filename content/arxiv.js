@@ -128,7 +128,7 @@ const ArxivHelper = {
         .filter(Boolean)
         .map(code => ARXIV_CATEGORIES[code] || this._codeToTag(code));
     } catch (e) {
-      Zotero.log(
+      Zotero.debug(
         `ZoteroAutoTagger: arXiv fetch failed for ${arxivID}: ${e.message}`,
         "warning"
       );

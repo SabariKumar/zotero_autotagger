@@ -35,7 +35,7 @@ const KeychainHelper = {
       const logins = Services.logins.findLogins(KEYCHAIN_HOST, null, KEYCHAIN_REALM);
       return logins.length ? logins[0].password : null;
     } catch (e) {
-      Zotero.log(`ZoteroAutoTagger: keychain read failed: ${e.message}`, "warning");
+      Zotero.debug(`ZoteroAutoTagger: keychain read failed: ${e.message}`, "warning");
       return null;
     }
   },
@@ -62,7 +62,7 @@ const KeychainHelper = {
         Services.logins.addLogin(loginInfo);
       }
     } catch (e) {
-      Zotero.log(`ZoteroAutoTagger: keychain write failed: ${e.message}`, "error");
+      Zotero.debug(`ZoteroAutoTagger: keychain write failed: ${e.message}`, "error");
     }
   },
 
@@ -78,7 +78,7 @@ const KeychainHelper = {
         Services.logins.removeLogin(login);
       }
     } catch (e) {
-      Zotero.log(`ZoteroAutoTagger: keychain remove failed: ${e.message}`, "warning");
+      Zotero.debug(`ZoteroAutoTagger: keychain remove failed: ${e.message}`, "warning");
     }
   },
 };

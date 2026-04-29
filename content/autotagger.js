@@ -38,7 +38,7 @@ class AutoTagger {
    */
   init() {
     this._notifierID = Zotero.Notifier.registerObserver(this, ["item"], "autotagger");
-    Zotero.log("ZoteroAutoTagger: started");
+    Zotero.debug("ZoteroAutoTagger: started");
   }
 
   /**
@@ -53,7 +53,7 @@ class AutoTagger {
       Zotero.Notifier.unregisterObserver(this._notifierID);
       this._notifierID = null;
     }
-    Zotero.log("ZoteroAutoTagger: stopped");
+    Zotero.debug("ZoteroAutoTagger: stopped");
   }
 
   /**
@@ -98,7 +98,7 @@ class AutoTagger {
   async _tagItem(item) {
     const apiKey = KeychainHelper.get();
     if (!apiKey) {
-      Zotero.log(
+      Zotero.debug(
         "ZoteroAutoTagger: API key not set — open Zotero Preferences → AutoTagger",
         "warning"
       );
@@ -124,7 +124,7 @@ class AutoTagger {
       newTags.unshift(domain); // domain tag goes first in the final list
       newTags.push(...tags);
     } catch (e) {
-      Zotero.log(`ZoteroAutoTagger: Claude error for "${title}": ${e.message}`, "error");
+      Zotero.debug(`ZoteroAutoTagger: Claude error for "${title}": ${e.message}`, "error");
     }
 
     for (const tag of newTags) {
@@ -132,7 +132,7 @@ class AutoTagger {
     }
     if (newTags.length) {
       await item.saveTx();
-      Zotero.log(`ZoteroAutoTagger: tagged "${title}" → [${newTags.join(", ")}]`);
+      Zotero.debug(`ZoteroAutoTagger: tagged "${title}" → [${newTags.join(", ")}]`);
     }
   }
 
