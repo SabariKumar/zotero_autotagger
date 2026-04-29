@@ -15,7 +15,7 @@
  * Tags are always appended — existing tags on the item are never removed.
  */
 
-const CLAUDE_MODEL = "claude-sonnet-4-6";
+const CLAUDE_MODEL = "claude-haiku-4-5-20251001";
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 
 /**
@@ -171,6 +171,7 @@ class AutoTagger {
    * duplicating subject-area concepts. The response is expected to be a JSON
    * object; markdown code fences are stripped defensively because Claude
    * occasionally wraps JSON in ```json blocks despite the prompt instruction.
+   * max_tokens is set to 512 to comfortably fit a domain tag + up to 12 content tags as JSON.
    *
    * @param {string} apiKey - Anthropic API key retrieved from KeychainHelper.
    * @param {string} title - Paper title.
@@ -187,7 +188,7 @@ class AutoTagger {
     const prompt = [
       "You are a research librarian. Given a paper's title and abstract, return:",
       "1. A single broad domain tag (e.g. 'machine-learning', 'structural-biology', 'cosmology', 'economics')",
-      "2. 5–8 specific content tags for the paper's topic, findings, and methods",
+      "2. 5–12 specific content tags for the paper's topic, findings, and methods",
       "",
       "Tag rules: lowercase, hyphenated-if-multi-word, specific and useful for filtering a personal research library.",
       "Do not use generic terms like 'research', 'study', or 'paper'.",
@@ -210,7 +211,7 @@ class AutoTagger {
       },
       body: JSON.stringify({
         model: CLAUDE_MODEL,
-        max_tokens: 300,
+        max_tokens: 512,
         messages: [{ role: "user", content: prompt }],
       }),
     });

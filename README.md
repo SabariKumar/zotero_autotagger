@@ -6,7 +6,7 @@ A Zotero 7 plugin that automatically tags papers with content-based tags when th
 
 ## Purpose
 
-Zotero's tagging system is only useful if tags are applied consistently. Doing this by hand is slow and rarely happens at the moment a paper is added. This plugin hooks into Zotero's internal event system and runs a two-stage tagging pipeline the moment a new item lands in your library: first pulling structured subject tags from arXiv's taxonomy (for preprints), then calling Claude to assign a broad domain tag and 5–8 specific content tags derived from the title and abstract.
+Zotero's tagging system is only useful if tags are applied consistently. Doing this by hand is slow and rarely happens at the moment a paper is added. This plugin hooks into Zotero's internal event system and runs a two-stage tagging pipeline the moment a new item lands in your library: first pulling structured subject tags from arXiv's taxonomy (for preprints), then calling Claude to assign a broad domain tag and 5–12 specific content tags derived from the title and abstract.
 
 ---
 
@@ -31,6 +31,12 @@ Defines the `AutoTagger` class, which owns the Zotero Notifier subscription and 
 
 Tags are always appended — the plugin never removes or replaces existing tags.
 
+### `content/keychain.js`
+
+Defines the `KeychainHelper` singleton, which wraps Firefox's `nsILoginManager` (`Services.logins`) for secure credential storage. Credentials are stored under the key `(chrome://zotero-autotagger, "Anthropic API Key")` and encrypted with AES-256; on macOS the decryption master key is protected by the system Keychain. `set()` uses `modifyLogin` when an entry already exists to avoid creating duplicate credentials. `get()` and `remove()` return gracefully on failure rather than throwing, so a missing or inaccessible credential is treated as "not configured".
+
+The prefs pane cannot import this module (separate document scope), so its login manager calls are inlined verbatim — keep the `KEYCHAIN_HOST`, `KEYCHAIN_REALM`, and `KEYCHAIN_USER` constants in sync if they ever change.
+
 ### `content/arxiv.js`
 
 Defines the `ArxivHelper` singleton object and the `ARXIV_CATEGORIES` lookup table.
@@ -39,7 +45,7 @@ Defines the `ArxivHelper` singleton object and the `ARXIV_CATEGORIES` lookup tab
 
 ### `prefs/prefs.xhtml`
 
-An XHTML preferences pane registered with `Zotero.PreferencePanes`. Provides a password-type input for the Anthropic API key. The key is stored in Zotero's global preference store under `extensions.zotero-autotagger.apiKey` and is read at tagging time (not cached) so changes take effect immediately without restarting Zotero.
+An XHTML preferences pane registered with `Zotero.PreferencePanes`. Provides a password-type input for the Anthropic API key. The key is stored via Firefox's `nsILoginManager` (see `content/keychain.js`) and read at tagging time so changes take effect immediately without restarting Zotero.
 
 ---
 
@@ -62,7 +68,7 @@ The plugin reads the following fields from each newly added `Zotero.Item`:
 |---|---|---|---|
 | arXiv subject tags | automatic (1) | arXiv Atom API | `machine-learning`, `computer-vision` |
 | Broad domain tag | automatic (1) | Claude | `structural-biology` |
-| Content tags (5–8) | automatic (1) | Claude | `protein-folding`, `diffusion-model` |
+| Content tags (5–12) | automatic (1) | Claude | `protein-folding`, `diffusion-model` |
 
 Tags use lowercase, hyphenated-if-multi-word formatting throughout.
 
@@ -71,8 +77,8 @@ Tags use lowercase, hyphenated-if-multi-word formatting throughout.
 **Request body** (Anthropic Messages API):
 ```json
 {
-  "model": "claude-sonnet-4-6",
-  "max_tokens": 300,
+  "model": "claude-haiku-4-5-20251001",
+  "max_tokens": 512,
   "messages": [{ "role": "user", "content": "<prompt>" }]
 }
 ```
@@ -88,15 +94,15 @@ Markdown code fences are stripped defensively before parsing, as Claude occasion
 
 ## Critical parameters and constraints
 
-**`CLAUDE_MODEL`** (`content/autotagger.js`): Pinned to `claude-sonnet-4-6`. Update this constant when migrating to a newer model; the prompt format is stable across Sonnet versions.
+**`CLAUDE_MODEL`** (`content/autotagger.js`): Pinned to `claude-haiku-4-5-20251001`. Haiku is sufficient for this task — structured JSON extraction from a title and abstract requires no complex reasoning. Update this constant when migrating to a newer model.
 
-**`max_tokens: 300`**: Sufficient for a domain tag + 8 content tags as JSON. If you extend the prompt to request more tags, increase this value — a truncated response will fail JSON parsing and log a Claude error for the item.
+**`max_tokens: 512`**: Sized for a domain tag + up to 12 content tags as JSON. A truncated response will fail JSON parsing and log a Claude error for the item — increase this value if you raise the tag limit further.
 
 **`item.addTag(tag, 1)`**: The second argument `1` marks tags as automatic. Zotero's tag selector can filter by type; automatic tags appear under a separate "Automatic" section. Using `0` (or omitting the argument) would mark tags as manual, making them indistinguishable from user-applied tags.
 
 **`item.saveTx()`**: Zotero requires the `Tx` (transactional) variant for DB persistence. Calling `item.save()` alone is not sufficient and will appear to succeed but not commit.
 
-**`Zotero.Prefs.get(key, true)`**: The second argument `true` requests the global preference scope. Without it, Zotero may look up the key in a per-library scope and return `undefined` even when the key is set.
+**API key storage** (`content/keychain.js`): The Anthropic API key is stored in Firefox's `nsILoginManager` rather than Zotero's plain-text preference store. On macOS this is backed by the system Keychain. The prefs pane inlines its own login manager calls because it runs in a separate document scope that cannot access the `KeychainHelper` global defined in the bootstrap.
 
 **arXiv ID version stripping**: The URL regex `[0-9]{4}\.[0-9]+` stops at the `v` in version suffixes like `2301.12345v2`, yielding the bare ID. The arXiv API always returns the latest metadata for a bare ID, so this is the correct behaviour.
 
