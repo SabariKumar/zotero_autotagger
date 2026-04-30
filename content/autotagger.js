@@ -76,8 +76,33 @@ class AutoTagger {
     for (const id of ids) {
       const item = Zotero.Items.get(id);
       if (!item || !item.isRegularItem()) continue;
+      await this._fixItemType(item);
       await this._tagItem(item);
     }
+  }
+
+  /**
+   * Correct the item type for arXiv papers saved as webpages.
+   *
+   * When a paper is saved from the arXiv PDF viewer rather than the abstract
+   * page, Zotero's translator sometimes doesn't fire and creates a "webpage"
+   * item instead of a "preprint". This method detects that case by checking
+   * whether a webpage item has an arXiv URL, and if so promotes it to preprint.
+   *
+   * @param {Zotero.Item} item - A Zotero regular item.
+   * @returns {Promise<void>}
+   */
+  async _fixItemType(item) {
+    const WEBPAGE_TYPE = Zotero.ItemTypes.getID("webpage");
+    const PREPRINT_TYPE = Zotero.ItemTypes.getID("preprint");
+    if (item.itemTypeID !== WEBPAGE_TYPE) return;
+
+    const url = item.getField("url") || "";
+    if (!url.match(/arxiv\.org/i)) return;
+
+    item.setType(PREPRINT_TYPE);
+    await item.saveTx();
+    Zotero.debug(`ZoteroAutoTagger: corrected item type to preprint for "${item.getField("title")}"`);
   }
 
   /**
