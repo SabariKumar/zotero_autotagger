@@ -10,7 +10,7 @@
  * Firefox-derived environment without any imports.
  */
 
-const ARXIV_API = "https://export.arxiv.org/api/query?id_list=";
+var ARXIV_API = "https://export.arxiv.org/api/query?id_list=";
 
 /**
  * Maps arXiv category codes to human-readable hyphenated tag strings.
@@ -21,7 +21,7 @@ const ARXIV_API = "https://export.arxiv.org/api/query?id_list=";
  *
  * @type {Object.<string, string>}
  */
-const ARXIV_CATEGORIES = {
+var ARXIV_CATEGORIES = {
   // Computer Science
   "cs.AI":  "artificial-intelligence",
   "cs.CL":  "computational-linguistics",
@@ -100,7 +100,7 @@ const ARXIV_CATEGORIES = {
   "econ.TH": "economic-theory",
 };
 
-const ArxivHelper = {
+var ArxivHelper = {
   /**
    * Fetch and translate arXiv subject categories for a given paper.
    *

@@ -16,11 +16,11 @@
  * any real web credentials.
  */
 
-const KEYCHAIN_HOST  = "chrome://zotero-autotagger";
-const KEYCHAIN_REALM = "Anthropic API Key";
-const KEYCHAIN_USER  = "anthropic";
+var KEYCHAIN_HOST  = "chrome://zotero-autotagger";
+var KEYCHAIN_REALM = "Anthropic API Key";
+var KEYCHAIN_USER  = "anthropic";
 
-const KeychainHelper = {
+var KeychainHelper = {
   /**
    * Read the stored Anthropic API key.
    *

@@ -7,6 +7,15 @@
   .autotagger-row input { flex: 1; padding: 4px 6px; }
   .autotagger-hint { color: #888; font-size: 0.82em; margin: 4px 0 0 128px; }
   .autotagger-status { margin-top: 12px; font-size: 0.85em; color: #2a7; display: none; }
+  .autotagger-bulk { margin-top: 20px; border-top: 1px solid #ddd; padding-top: 16px; }
+  .autotagger-bulk h4 { margin: 0 0 10px; font-size: 0.95em; }
+  .autotagger-bulk-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .autotagger-bulk-row button { padding: 5px 12px; cursor: pointer; }
+  .autotagger-bulk-row button:disabled { opacity: 0.5; cursor: default; }
+  .autotagger-skip-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 0.88em; }
+  .autotagger-progress-wrap { margin-top: 10px; display: none; background: #e0e0e0; border-radius: 4px; height: 8px; overflow: hidden; }
+  .autotagger-progress-fill { height: 100%; width: 0%; background: #2a7; border-radius: 4px; transition: width 0.2s ease; }
+  .autotagger-progress { margin-top: 5px; font-size: 0.85em; color: #555; min-height: 1.2em; }
 </style>
 
 <div class="autotagger-pane">
@@ -22,57 +31,21 @@
     For arXiv papers, subject tags are also fetched from the arXiv taxonomy.
   </p>
   <p class="autotagger-status" id="autotagger-status">Saved.</p>
+
+  <div class="autotagger-bulk">
+    <h4>Bulk Tagging</h4>
+    <div class="autotagger-bulk-row">
+      <button id="autotagger-bulk-btn">Tag All Library Items</button>
+    </div>
+    <div class="autotagger-skip-row">
+      <input type="checkbox" id="autotagger-skip-tagged" checked="true" />
+      <label for="autotagger-skip-tagged">Skip items that already have auto-tags</label>
+    </div>
+    <div class="autotagger-progress-wrap" id="autotagger-progress-wrap">
+      <div class="autotagger-progress-fill" id="autotagger-progress-fill"></div>
+    </div>
+    <p class="autotagger-progress" id="autotagger-progress"></p>
+  </div>
 </div>
 
-<script>
-  /* global Services, Cc, Ci, Zotero */
-  const KEYCHAIN_HOST  = "chrome://zotero-autotagger";
-  const KEYCHAIN_REALM = "Anthropic API Key";
-  const KEYCHAIN_USER  = "anthropic";
-
-  function keychainGet() {
-    try {
-      const logins = Services.logins.findLogins(KEYCHAIN_HOST, null, KEYCHAIN_REALM);
-      return logins.length ? logins[0].password : "";
-    } catch (e) { return ""; }
-  }
-
-  function keychainSet(apiKey) {
-    try {
-      const loginInfo = Cc["@mozilla.org/login-manager/loginInfo;1"].createInstance(Ci.nsILoginInfo);
-      loginInfo.init(KEYCHAIN_HOST, null, KEYCHAIN_REALM, KEYCHAIN_USER, apiKey, "", "");
-      const existing = Services.logins.findLogins(KEYCHAIN_HOST, null, KEYCHAIN_REALM);
-      if (existing.length) {
-        Services.logins.modifyLogin(existing[0], loginInfo);
-      } else {
-        Services.logins.addLogin(loginInfo);
-      }
-    } catch (e) {
-      Zotero.log(`ZoteroAutoTagger prefs: keychain write failed: ${e.message}`, "error");
-    }
-  }
-
-  function keychainRemove() {
-    try {
-      const existing = Services.logins.findLogins(KEYCHAIN_HOST, null, KEYCHAIN_REALM);
-      for (const login of existing) Services.logins.removeLogin(login);
-    } catch (e) {}
-  }
-
-  const input  = document.getElementById("autotagger-api-key");
-  const status = document.getElementById("autotagger-status");
-
-  input.value = keychainGet();
-
-  input.addEventListener("change", () => {
-    const val = input.value.trim();
-    if (val) {
-      keychainSet(val);
-    } else {
-      keychainRemove();
-    }
-    status.style.display = "block";
-    setTimeout(() => { status.style.display = "none"; }, 2000);
-  });
-</script>
 </div>

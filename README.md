@@ -24,6 +24,8 @@ Defines the `AutoTagger` class, which owns the Zotero Notifier subscription and 
 
 **Notifier pattern.** `AutoTagger` implements the Notifier observer interface by exposing a `notify(event, type, ids, extraData)` method. Zotero calls this method for every library event; the class filters for `event === "add"` and `type === "item"`. Attachments, notes, and annotations are skipped via `item.isRegularItem()` because they are not independently citable.
 
+**Item type correction.** Before tagging, the plugin checks whether a newly added item is a `webpage` with an arxiv.org URL. This happens when a paper is saved from the arXiv PDF viewer rather than the abstract page, which causes Zotero's translator to miss the paper and fall back to a generic webpage save. The plugin promotes such items to `preprint` automatically, preserving all common fields (title, URL, date, abstract).
+
 **Tagging pipeline.** For each new regular item:
 1. Check whether the item is an arXiv preprint by inspecting the `url` field (primary) and the `extra` field (fallback). If it is, call `ArxivHelper.fetchSubjectTags` and collect the translated category tags.
 2. Call the Claude API with the title, abstract, and any arXiv tags already collected. Claude returns a JSON object `{"domain": "...", "tags": [...]}`. The `domain` tag is prepended so it appears first in Zotero's tag panel.
@@ -45,7 +47,11 @@ Defines the `ArxivHelper` singleton object and the `ARXIV_CATEGORIES` lookup tab
 
 ### `prefs/prefs.xhtml`
 
-An XHTML preferences pane registered with `Zotero.PreferencePanes`. Provides a password-type input for the Anthropic API key. The key is stored via Firefox's `nsILoginManager` (see `content/keychain.js`) and read at tagging time so changes take effect immediately without restarting Zotero.
+An XHTML preferences pane registered with `Zotero.PreferencePanes`. Provides a password-type input for the Anthropic API key and a **Tag All Library Items** button for bulk-tagging existing items. The key is stored via Firefox's `nsILoginManager` (see `content/keychain.js`) and read at tagging time so changes take effect immediately without restarting Zotero.
+
+### `prefs/prefs.js`
+
+JavaScript for the preferences pane, loaded as a separate file via the `scripts: [...]` parameter of `Zotero.PreferencePanes.register`. It uses a `MutationObserver` to initialise only once the pane's DOM elements are actually injected into the preferences window (see **Zotero 7 pref pane gotchas** below).
 
 ---
 
@@ -57,9 +63,10 @@ The plugin reads the following fields from each newly added `Zotero.Item`:
 
 | Field | Zotero key | Used for |
 |---|---|---|
-| Title | `title` | Required — items without a title are skipped |
+| Item type | `itemTypeID` | Detected if `webpage`; promoted to `preprint` if URL matches arxiv.org |
+| Title | `title` | Required for tagging — items without a title are skipped |
 | Abstract | `abstractNote` | Passed to Claude; tagging proceeds if absent |
-| URL | `url` | arXiv ID extraction (primary source) |
+| URL | `url` | arXiv ID extraction (primary source) and webpage type detection |
 | Extra | `extra` | arXiv ID extraction (fallback, pattern: `arXiv: XXXX.XXXXX`) |
 
 ### Output — tags written to item
@@ -102,9 +109,56 @@ Markdown code fences are stripped defensively before parsing, as Claude occasion
 
 **`item.saveTx()`**: Zotero requires the `Tx` (transactional) variant for DB persistence. Calling `item.save()` alone is not sufficient and will appear to succeed but not commit.
 
+**Abstract truncation** (`content/autotagger.js`): The abstract is capped at 2 000 characters before being included in the Claude prompt. Some papers (especially in biology and medicine) have very long abstracts that would otherwise exceed the API's prompt length limit and return a `400` error. 2 000 characters comfortably covers any real abstract while staying well under the limit.
+
 **API key storage** (`content/keychain.js`): The Anthropic API key is stored in Firefox's `nsILoginManager` rather than Zotero's plain-text preference store. On macOS this is backed by the system Keychain. The prefs pane inlines its own login manager calls because it runs in a separate document scope that cannot access the `KeychainHelper` global defined in the bootstrap.
 
 **arXiv ID version stripping**: The URL regex `[0-9]{4}\.[0-9]+` stops at the `v` in version suffixes like `2301.12345v2`, yielding the bare ID. The arXiv API always returns the latest metadata for a bare ID, so this is the correct behaviour.
+
+---
+
+## Zotero 7 pref pane gotchas
+
+These bit us during development and are not clearly documented anywhere.
+
+### Inline `<script>` tags are silently ignored
+
+Zotero 7's `PreferencePanes` system does not execute `<script>` tags embedded in the pane's XHTML. The script runs in no context and produces no error — it is simply dropped. All JavaScript must be in a separate `.js` file registered via the `scripts: [...]` array in `Zotero.PreferencePanes.register`:
+
+```js
+_prefPaneID = await Zotero.PreferencePanes.register({
+  pluginID: "zotero-autotagger@sabarinkumar",
+  src: rootURI + "prefs/prefs.xhtml",
+  scripts: [rootURI + "prefs/prefs.js"],   // ← required
+  label: "AutoTagger",
+});
+```
+
+### `PreferencePanes.register` returns a Promise — await it
+
+`register()` is async. Not awaiting it means `_prefPaneID` receives a `Promise` object rather than the pane ID string. The pane still registers (the Promise resolves in the background), but `shutdown` cannot unregister it correctly. The symptom in the debug log is `prefPaneID=[object Promise]`.
+
+### Pref pane HTML is injected lazily — `window.load` is too early
+
+Scripts loaded via `scripts: []` execute when the preferences window opens, which is before the user has navigated to your specific pane. At that point `document.getElementById("autotagger-bulk-btn")` returns `null` because your XHTML fragment has not yet been inserted. Wrapping initialization in `window.addEventListener("load", ...)` does not help for the same reason: the preferences window's `load` event also fires before any pane fragment is injected.
+
+The correct pattern is a `MutationObserver` that watches for your elements to appear:
+
+```js
+function initPane() {
+  const bulkBtn = document.getElementById("autotagger-bulk-btn");
+  if (!bulkBtn) return false;
+  // attach listeners...
+  return true;
+}
+
+if (!initPane()) {
+  const observer = new MutationObserver(() => {
+    if (initPane()) observer.disconnect();
+  });
+  observer.observe(document, { childList: true, subtree: true });
+}
+```
 
 ---
 

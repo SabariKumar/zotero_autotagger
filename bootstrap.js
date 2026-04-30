@@ -27,18 +27,26 @@ var _prefPaneID;
  *   subscript loading and the preferences pane src.
  * @returns {void}
  */
-function startup({ rootURI }) {
-  Services.scriptloader.loadSubScript(rootURI + "content/keychain.js");
-  Services.scriptloader.loadSubScript(rootURI + "content/arxiv.js");
-  Services.scriptloader.loadSubScript(rootURI + "content/autotagger.js");
-  ZoteroAutoTagger = new AutoTagger();
-  ZoteroAutoTagger.init();
+async function startup({ rootURI }) {
+  await Zotero.initializationPromise;
+  try {
+    Services.scriptloader.loadSubScript(rootURI + "content/keychain.js");
+    Services.scriptloader.loadSubScript(rootURI + "content/arxiv.js");
+    Services.scriptloader.loadSubScript(rootURI + "content/autotagger.js");
+    ZoteroAutoTagger = new AutoTagger();
+    ZoteroAutoTagger.init();
+    Zotero.AutoTagger = ZoteroAutoTagger;
 
-  _prefPaneID = Zotero.PreferencePanes.register({
-    pluginID: "zotero-autotagger@sabarinkumar",
-    src: rootURI + "prefs/prefs.xhtml",
-    label: "AutoTagger",
-  });
+    _prefPaneID = await Zotero.PreferencePanes.register({
+      pluginID: "zotero-autotagger@sabarinkumar",
+      src: rootURI + "prefs/prefs.xhtml",
+      scripts: [rootURI + "prefs/prefs.js"],
+      label: "AutoTagger",
+    });
+    Zotero.debug("ZoteroAutoTagger: started, prefPaneID=" + _prefPaneID);
+  } catch (e) {
+    Zotero.debug("ZoteroAutoTagger: startup FAILED — " + e + "\n" + (e.stack || "no stack"), 1);
+  }
 }
 
 /**
@@ -53,6 +61,7 @@ function startup({ rootURI }) {
 function shutdown() {
   ZoteroAutoTagger?.shutdown();
   ZoteroAutoTagger = undefined;
+  delete Zotero.AutoTagger;
 
   if (_prefPaneID) {
     Zotero.PreferencePanes.unregister(_prefPaneID);

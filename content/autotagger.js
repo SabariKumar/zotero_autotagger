@@ -15,8 +15,8 @@
  * Tags are always appended — existing tags on the item are never removed.
  */
 
-const CLAUDE_MODEL = "claude-haiku-4-5-20251001";
-const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
+var CLAUDE_MODEL = "claude-haiku-4-5-20251001";
+var CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 
 /**
  * Manages the Zotero Notifier subscription and drives the tagging pipeline.
@@ -162,6 +162,52 @@ class AutoTagger {
   }
 
   /**
+   * Tag all regular items in the user library.
+   *
+   * Iterates every regular item (not attachments or notes) in the user's
+   * library and runs the full tagging pipeline on each one. Sequential
+   * processing keeps Claude API concurrency at 1, avoiding rate-limit errors
+   * on large libraries.
+   *
+   * skipTagged skips items that already carry at least one automatic (type 1)
+   * tag — useful for an incremental run that only processes items added before
+   * the notifier was installed. Set to false to force a re-tag of everything,
+   * but be aware that running twice without skipTagged will append duplicate tags.
+   *
+   * onProgress(done, total, skipped) is called after each item so the caller
+   * can update a progress display without polling.
+   *
+   * @param {object} [options]
+   * @param {boolean} [options.skipTagged=true] - Skip items with existing auto-tags.
+   * @param {Function} [options.onProgress] - Callback(done, total, skipped).
+   * @returns {Promise<{tagged: number, skipped: number}>}
+   */
+  async tagAllItems({ skipTagged = true, onProgress } = {}) {
+    const libraryID = Zotero.Libraries.userLibraryID;
+    const allItems = await Zotero.Items.getAll(libraryID);
+    const regularItems = allItems.filter(item => item.isRegularItem());
+    const total = regularItems.length;
+    let done = 0, tagged = 0, skipped = 0;
+
+    for (const item of regularItems) {
+      if (skipTagged && item.getTags().some(t => t.type === 1)) {
+        skipped++;
+        done++;
+        if (onProgress) onProgress(done, total, true);
+        continue;
+      }
+      await this._fixItemType(item);
+      await this._tagItem(item);
+      tagged++;
+      done++;
+      if (onProgress) onProgress(done, total, false);
+    }
+
+    Zotero.debug(`ZoteroAutoTagger: bulk run complete — tagged=${tagged}, skipped=${skipped}`);
+    return { tagged, skipped };
+  }
+
+  /**
    * Extract a bare arXiv identifier from a Zotero item's fields.
    *
    * Two sources are checked because Zotero's Chrome connector is inconsistent:
@@ -210,6 +256,13 @@ class AutoTagger {
       ? `\nSubject tags already assigned (from arXiv): [${existingTags.join(", ")}] — do not repeat these.`
       : "";
 
+    const MAX_ABSTRACT_CHARS = 2000;
+    const abstractText = abstract
+      ? (abstract.length > MAX_ABSTRACT_CHARS
+          ? abstract.slice(0, MAX_ABSTRACT_CHARS) + "…"
+          : abstract)
+      : "(not available)";
+
     const prompt = [
       "You are a research librarian. Given a paper's title and abstract, return:",
       "1. A single broad domain tag (e.g. 'machine-learning', 'structural-biology', 'cosmology', 'economics')",
@@ -220,7 +273,7 @@ class AutoTagger {
       existingNote,
       "",
       `Title: ${title}`,
-      `Abstract: ${abstract || "(not available)"}`,
+      `Abstract: ${abstractText}`,
       "",
       'Respond with ONLY a JSON object: {"domain": "...", "tags": [...]}',
     ]
